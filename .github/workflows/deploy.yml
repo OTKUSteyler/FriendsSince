@@ -11,10 +11,10 @@ jobs:
           contents: write
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
 
             - name: Prepare environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v3
               with:
                   node-version: "22"
 
@@ -39,7 +39,7 @@ jobs:
 
               # Documentation: https://github.com/peaceiris/actions-gh-pages
             - name: Deploy to GitHub Pages
-              uses: peaceiris/actions-gh-pages@v4
+              uses: peaceiris/actions-gh-pages@v3
               with:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   publish_dir: ./dist

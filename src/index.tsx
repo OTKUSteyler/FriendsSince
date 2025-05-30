@@ -24,4 +24,4 @@ export default () =>
 
     const userId = args[0]?.user?.id;
     profileSections?.push(<ReviewSection userId={userId} />);
-  });
+  }); 

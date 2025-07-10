@@ -5,16 +5,26 @@ import { React } from "@vendetta/metro/common";
 
 const { View, Text } = React;
 
+// Get the RelationshipStore to check friend/block status
 const RelationshipStore = findByStoreName("RelationshipStore");
-const SimplifiedUserProfileContent = findByName("SimplifiedUserProfileContent");
+const SimplifiedUserProfileContent = findByName("SimplifiedUserProfileContent", false);
+
+let unpatch: () => void;
 
 const ReviewSection = ({ userId }: { userId: string }) => {
   const status = (() => {
-    const relation = RelationshipStore?.getRelationship(userId);
-    if (relation === 1 || relation === 2) return "Friend";
-    if (relation === 3) return "Blocked";
-    if (relation === 0) return "Not friends";
-    return "Unknown";
+    const rel = RelationshipStore?.getRelationship(userId);
+    switch (rel) {
+      case 1:
+      case 2:
+        return "Friend";
+      case 3:
+        return "Blocked";
+      case 0:
+        return "Not Friends";
+      default:
+        return "Unknown";
+    }
   })();
 
   return (
@@ -24,13 +34,16 @@ const ReviewSection = ({ userId }: { userId: string }) => {
   );
 };
 
-let unpatch: () => void;
-
 export const onLoad = () => {
+  if (!SimplifiedUserProfileContent) {
+    console.error("Failed to load SimplifiedUserProfileContent");
+    return;
+  }
+
   unpatch = after("type", SimplifiedUserProfileContent, (args, ret) => {
     const userId = args?.[0]?.user?.id;
 
-    const aboutMeSection = findInReactTree(ret, (x) =>
+    const section = findInReactTree(ret, (x) =>
       x?.type?.displayName === "View" &&
       Array.isArray(x?.props?.children) &&
       x.props.children.some(
@@ -38,13 +51,10 @@ export const onLoad = () => {
       )
     );
 
-    if (!aboutMeSection || !userId) return;
-
-    aboutMeSection.props.children.push(<ReviewSection userId={userId} />);
+    if (!userId || !section) return;
+    section.props.children.push(<ReviewSection userId={userId} />);
     return ret;
   });
 };
 
-export const onUnload = () => {
-  unpatch?.();
-};
+export const onUnload = () => unpatch?.();

@@ -2,7 +2,6 @@ import { findByName, findByStoreName } from "@vendetta/metro";
 import { after } from "@vendetta/patcher";
 import { findInReactTree } from "@vendetta/utils";
 import { React } from "@vendetta/metro/common";
-import { getModule } from "@vendetta/metro";
 
 const { View, Text } = React;
 const RelationshipStore = findByStoreName("RelationshipStore");
@@ -31,53 +30,45 @@ function getRelationshipStatus(userId: string): string {
   }
 }
 
-function FriendshipStatusTag({ userId }: { userId: string }) {
-  const status = getRelationshipStatus(userId);
-  return (
-    <Text style={{ color: "gray", marginLeft: 10 }}>| Status: {status}</Text>
+function injectFriendStatusToMemberSince(ret: any, userId: string) {
+  const memberSinceLine = findInReactTree(ret, (x) =>
+    typeof x?.props?.children === "string" &&
+    x?.props?.children.toLowerCase().includes("member since")
   );
+
+  if (!memberSinceLine || !userId) {
+    console.warn("[FriendsSince] ⚠️ Could not find 'Member Since' text or user ID missing.");
+    return;
+  }
+
+  const originalText = memberSinceLine.props.children;
+  const statusText = getRelationshipStatus(userId);
+
+  memberSinceLine.type = View;
+  memberSinceLine.props = {
+    style: { flexDirection: "row", alignItems: "center", gap: 6 },
+    children: [
+      <Text style={{ color: "white" }}>{originalText}</Text>,
+      <Text style={{ color: "gray" }}>| Status: {statusText}</Text>
+    ]
+  };
+
+  console.log("[FriendsSince] ✅ Injected friendship status beside 'Member Since'");
 }
 
 export const onLoad = () => {
   console.log("[FriendsSince] 🟢 Loading plugin...");
 
-  const Component =
-    findByName("UserProfile", false) ||
-    findByName("UserProfileWrapper", false) ||
-    findByName("SimplifiedUserProfileContent", false);
+  const ProfileComponent = findByName("UserProfile", false);
 
-  if (!Component) {
-    console.error("[FriendsSince] ❌ Could not find a usable profile component.");
+  if (!ProfileComponent) {
+    console.error("[FriendsSince] ❌ UserProfile component not found.");
     return;
   }
 
-  console.log("[FriendsSince] ✅ Component hooked:", Component.displayName || Component.name);
-
-  unpatch = after("type", Component, (args, ret) => {
+  unpatch = after("type", ProfileComponent, (args, ret) => {
     const userId = args?.[0]?.user?.id;
-    if (!userId) {
-      console.warn("[FriendsSince] ⚠️ Missing user ID.");
-      return ret;
-    }
-
-    const targetLine = findInReactTree(ret, (x) =>
-      typeof x?.props?.children === "string" &&
-      x?.props?.children?.toLowerCase?.().includes("member since")
-    );
-
-    if (targetLine && React.isValidElement(targetLine)) {
-      const originalChildren = targetLine.props.children;
-      targetLine.props.children = (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ color: "white" }}>{originalChildren}</Text>
-          <FriendshipStatusTag userId={userId} />
-        </View>
-      );
-      console.log("[FriendsSince] ✅ Injected next to 'Member Since'");
-    } else {
-      console.warn("[FriendsSince] ⚠️ Couldn't find 'Member Since' line.");
-    }
-
+    injectFriendStatusToMemberSince(ret, userId);
     return ret;
   });
 };

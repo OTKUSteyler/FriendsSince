@@ -1,57 +1,39 @@
 import { findByName, findByStoreName } from "@vendetta/metro";
 import { after } from "@vendetta/patcher";
 import { findInReactTree } from "@vendetta/utils";
-import { React } from "@vendetta/metro/common";
-import { Text, View } from "react-native";
+import { React, ReactNative } from "@vendetta/metro/common";
 
-// Find necessary modules
-const SimplifiedUserProfileContent = findByName("SimplifiedUserProfileContent", false);
-const RelationshipStore = findByStoreName("RelationshipStore");
+const { Text, View } = ReactNative;
 
-// Helper to check friendship/block status
-const getRelationshipStatus = (userId: string): string => {
-  if (!RelationshipStore) return "Unknown";
+let unpatch: () => void;
 
-  const relationship = RelationshipStore.getRelationship(userId);
+export const onLoad = () => {
+    const RelationshipStore = findByStoreName("RelationshipStore");
+    const MessageHeader = findByName("MessageHeader", false);
 
-  switch (relationship) {
-    case 1:
-      return "Friend";
-    case 2:
-      return "Blocked";
-    case 0:
-      return "Not Friends";
-    default:
-      return "Unknown";
-  }
+    unpatch = after("type", MessageHeader.prototype, ([args], res) => {
+        const userId = args?.message?.authorId;
+        if (!userId) return res;
+
+        const status = RelationshipStore.getRelationshipStatus(userId);
+        if (!status) return res;
+
+        const header = findInReactTree(res, (x) => x?.props?.timestamp);
+
+        if (header) {
+            header.props.children.push(
+                <View style={{ padding: 10 }}>
+                    <Text style={{ color: "white", fontSize: 14, fontWeight: "bold" }}>
+                        Friendship Info
+                    </Text>
+                </View>
+            );
+        }
+
+        return res;
+    });
 };
 
-// Component to inject into profile
-const StatusSection = ({ userId }: { userId: string }) => {
-  const status = getRelationshipStatus(userId);
-  return (
-    <View style={{ padding: 10 }}>
-      <Text style={{ color: "white" }}>User ID: {userId}</Text>
-      <Text style={{ color: "gray" }}>Status: {status}</Text>
-    </View>
-  );
+export const onUnload = () => {
+    unpatch?.();
 };
-
-export default () =>
-  after("type", SimplifiedUserProfileContent, (args, res) => {
-    const section = findInReactTree(res, (x) =>
-      x?.type?.displayName === "View" &&
-      Array.isArray(x?.props?.children) &&
-      x?.props?.children?.some(
-        (c) => c?.type?.name === "SimplifiedUserProfileAboutMeCard"
-      )
-    );
-
-    const userId = args?.[0]?.user?.id;
-
-    if (section && userId) {
-      section.props.children.push(<StatusSection userId={userId} />);
-    }
-
-    return res;
-  });

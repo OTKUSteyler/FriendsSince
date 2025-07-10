@@ -1,35 +1,43 @@
-import { findByName, findByStoreName } from "@vendetta/metro";
+import { findByProps, findByName, findByStoreName } from "@vendetta/metro";
 import { after } from "@vendetta/patcher";
 import { findInReactTree } from "@vendetta/utils";
-import { React } from "@vendetta/metro/common";
+import React from "react";
+import { Text, View } from "react-native";
 
-const { View, Text } = React;
+// Get relevant components/stores
+const SimplifiedUserProfileContent = findByName("SimplifiedUserProfileContent");
 const RelationshipStore = findByStoreName("RelationshipStore");
 
-let unpatch: () => void;
-
+// Log and evaluate relationship status
 function getRelationshipStatus(userId: string): string {
   try {
     const rel = RelationshipStore?.getRelationship(userId);
-    console.log(`[FriendsSince] Relationship for ${userId}:`, rel);
+    let status: string;
 
     switch (rel) {
       case 1:
       case 2:
-        return "Friend";
+        status = "Friend";
+        break;
       case 3:
-        return "Blocked";
+        status = "Blocked";
+        break;
       case 0:
-        return "Not Friends";
+        status = "Not Friends";
+        break;
       default:
-        return "Unknown";
+        status = "Unknown";
     }
+
+    console.log(`[FriendsSince] Status for user ${userId}: ${status} (raw: ${rel})`);
+    return status;
   } catch (err) {
-    console.error("[FriendsSince] Relationship check failed:", err);
+    console.error(`[FriendsSince] Failed to get status for user ${userId}:`, err);
     return "Error";
   }
 }
 
+// UI section showing user ID + status
 const ReviewSection = ({ userId }: { userId: string }) => {
   const status = getRelationshipStatus(userId);
   return (
@@ -40,46 +48,21 @@ const ReviewSection = ({ userId }: { userId: string }) => {
   );
 };
 
-export const onLoad = () => {
-  console.log("[FriendsSince] Loading plugin...");
+// Patch the profile view
+export default () =>
+  after("type", SimplifiedUserProfileContent, (args, ret) => {
+    const profileSections = findInReactTree(ret, (r) =>
+      r?.type?.displayName === "View" &&
+      Array.isArray(r?.props?.children) &&
+      r.props.children.find(
+        (i) => i?.type?.name === "SimplifiedUserProfileAboutMeCard"
+      )
+    )?.props?.children;
 
-  const Component = findByName("SimplifiedUserProfileContent", false);
-  if (!Component) {
-    console.error("[FriendsSince] ❌ Component SimplifiedUserProfileContent not found.");
-    return;
-  }
-  console.log("[FriendsSince] ✅ Component found:", Component?.name || "Unnamed");
+    const userId = args?.[0]?.user?.id;
+    if (profileSections && userId) {
+      profileSections.push(<ReviewSection userId={userId} />);
+    }
 
-  try {
-    unpatch = after("type", Component, (args, ret) => {
-      const userId = args?.[0]?.user?.id;
-      console.log("[FriendsSince] Hooked userId:", userId);
-
-      const section = findInReactTree(ret, (x) =>
-        x?.type?.displayName === "View" &&
-        Array.isArray(x?.props?.children) &&
-        x.props.children.some(
-          (i) => i?.type?.name === "SimplifiedUserProfileAboutMeCard"
-        )
-      );
-
-      if (!section) {
-        console.warn("[FriendsSince] ⚠️ Profile section not found.");
-      } else if (!userId) {
-        console.warn("[FriendsSince] ⚠️ User ID missing.");
-      } else {
-        section.props.children.push(<ReviewSection userId={userId} />);
-        console.log("[FriendsSince] ✅ ReviewSection injected.");
-      }
-
-      return ret;
-    });
-  } catch (err) {
-    console.error("[FriendsSince] ❌ Failed to hook component:", err);
-  }
-};
-
-export const onUnload = () => {
-  console.log("[FriendsSince] Unloading plugin...");
-  unpatch?.();
-};
+    return ret;
+  });

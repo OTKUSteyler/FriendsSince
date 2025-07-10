@@ -31,74 +31,55 @@ function getRelationshipStatus(userId: string): string {
   }
 }
 
-const ReviewSection = ({ userId }: { userId: string }) => {
+function FriendshipStatusTag({ userId }: { userId: string }) {
   const status = getRelationshipStatus(userId);
   return (
-    <View style={{ padding: 10 }}>
-      <Text style={{ color: "white" }}>User ID: {userId}</Text>
-      <Text style={{ color: "gray" }}>Status: {status}</Text>
-    </View>
+    <Text style={{ color: "gray", marginLeft: 10 }}>| Status: {status}</Text>
   );
-};
-
-function dumpComponentNames() {
-  try {
-    const allModules = Object.values(getModule(m => m?.default?.displayName));
-    console.log("[FriendsSince] Dumping possible component names:");
-    allModules.forEach((m: any) => {
-      const name = m?.default?.displayName || m?.default?.name || m?.displayName || "Unknown";
-      if (name !== "Unknown") console.log("➤", name);
-    });
-  } catch (e) {
-    console.warn("[FriendsSince] Couldn't dump component names:", e);
-  }
 }
 
 export const onLoad = () => {
   console.log("[FriendsSince] 🟢 Loading plugin...");
 
-  // Dump components to help debugging
-  dumpComponentNames();
-
   const Component =
-    findByName("SimplifiedUserProfileContent", false) ||
     findByName("UserProfile", false) ||
-    findByName("UserProfileWrapper", false);
+    findByName("UserProfileWrapper", false) ||
+    findByName("SimplifiedUserProfileContent", false);
 
   if (!Component) {
-    console.error("[FriendsSince] ❌ Component not found. Tried multiple options.");
+    console.error("[FriendsSince] ❌ Could not find a usable profile component.");
     return;
   }
 
-  console.log("[FriendsSince] ✅ Component found:", Component?.name || Component?.displayName || "Unnamed");
+  console.log("[FriendsSince] ✅ Component hooked:", Component.displayName || Component.name);
 
-  try {
-    unpatch = after("type", Component, (args, ret) => {
-      const userId = args?.[0]?.user?.id;
-      console.log("[FriendsSince] Hooked userId:", userId);
-
-      const section = findInReactTree(ret, (x) =>
-        x?.type?.displayName === "View" &&
-        Array.isArray(x?.props?.children) &&
-        x.props.children.some(
-          (i) => i?.type?.name === "SimplifiedUserProfileAboutMeCard"
-        )
-      );
-
-      if (!section) {
-        console.warn("[FriendsSince] ⚠️ Profile section not found.");
-      } else if (!userId) {
-        console.warn("[FriendsSince] ⚠️ User ID missing.");
-      } else {
-        section.props.children.push(<ReviewSection userId={userId} />);
-        console.log("[FriendsSince] ✅ ReviewSection injected.");
-      }
-
+  unpatch = after("type", Component, (args, ret) => {
+    const userId = args?.[0]?.user?.id;
+    if (!userId) {
+      console.warn("[FriendsSince] ⚠️ Missing user ID.");
       return ret;
-    });
-  } catch (err) {
-    console.error("[FriendsSince] ❌ Failed to hook component:", err);
-  }
+    }
+
+    const targetLine = findInReactTree(ret, (x) =>
+      typeof x?.props?.children === "string" &&
+      x?.props?.children?.toLowerCase?.().includes("member since")
+    );
+
+    if (targetLine && React.isValidElement(targetLine)) {
+      const originalChildren = targetLine.props.children;
+      targetLine.props.children = (
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={{ color: "white" }}>{originalChildren}</Text>
+          <FriendshipStatusTag userId={userId} />
+        </View>
+      );
+      console.log("[FriendsSince] ✅ Injected next to 'Member Since'");
+    } else {
+      console.warn("[FriendsSince] ⚠️ Couldn't find 'Member Since' line.");
+    }
+
+    return ret;
+  });
 };
 
 export const onUnload = () => {

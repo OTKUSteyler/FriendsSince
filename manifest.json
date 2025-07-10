@@ -1,1 +1,1 @@
-{"name":"Template Plugin","description":"A plugin for use as a template.","authors":[{"name":"You!","id":"YOUR_ID_HERE"}],"main":"index.js","vendetta":{"icon":"ic_badge_staff"},"hash":"6cb6594aa032b83a1f24c2bb3d63e8aeb8e1652e0361e7d7a0e415850cc9c406"}
+{"name":"FriendsSince","description":"A plugin port from vencord.","authors":[{"name":"btmc727","id":"554071670143451176"}],"main":"index.js","vendetta":{"icon":"ic_badge_staff"},"hash":"c38d22402afe5b8bd7c792cf2570a72cc3c610272d0e9291209314a003f410de"}

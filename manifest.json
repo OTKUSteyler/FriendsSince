@@ -13,6 +13,6 @@
     ],
     "main": "src/index.ts",
     "vendetta": {
-        "icon": "ic_badge_staff"
+        "icon": "ic_friend_request_accepted"
     }
 }
